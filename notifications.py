@@ -42,6 +42,32 @@ def create_message(sender, to, subject, html_content):
     raw_message = base64.urlsafe_b64encode(message.as_bytes())
     return {'raw': raw_message.decode()}
 
+def create_message_with_attachment(sender, to, subject, html_content, attachments=None):
+    message = MIMEMultipart()
+    message['to'] = to
+    message['from'] = sender
+    message['subject'] = subject
+
+    # Cuerpo HTML
+    message.attach(MIMEText(html_content, 'html'))
+    print('Cuerpo HTML adjuntado.')
+    # Adjuntos opcionales (PDF u otros)
+    try:
+        if attachments:
+            for file in attachments:
+                filename = file.get('filename', 'document.pdf')
+                content_base64 = file.get('content')
+                if content_base64:
+                    file_data = base64.b64decode(content_base64)
+                    attachment = MIMEApplication(file_data, _subtype="pdf")
+                    attachment.add_header('Content-Disposition', 'attachment', filename=filename)
+                    message.attach(attachment)
+    except Exception as e:
+        print(f"Error al adjuntar archivos: {str(e)}")
+
+    raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
+    return {'raw': raw_message}
+
 def send_message(service, user_id, message):
     try:
         sent_message = service.users().messages().send(userId=user_id, body=message).execute()
@@ -170,12 +196,20 @@ def send_custom_notification():
         # Crear mensaje personalizado
         html_content = data.get('html_content', f"<p>{data['message']}</p>")
         
-        mensaje = create_message(
+
+        attachments = None
+        if isinstance(data, dict) and 'attachments' in data and data['attachments']:
+            attachments = data['attachments']
+        
+        print('Attachments:', attachments)
+        mensaje = create_message_with_attachment(
             sender="juan.clavijo50057@ucaldas.edu.co",
             to=data['email'],
             subject=data['subject'],
-            html_content=html_body
+            html_content=html_body,
+            attachments=attachments
         )
+        print('Mensaje creado:', mensaje)
         
         result = send_message(service, 'me', mensaje)
         
